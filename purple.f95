@@ -40,8 +40,8 @@ program purple
    character :: ch, flag
    character, dimension(25) :: buffer
    character (len = 80) :: line
-   integer, dimension(NS,NL) :: e6, d6, r6
-   integer, dimension(NT,NL,NR) :: e20, d20, r20
+   integer, dimension(NS,NL) :: r6
+   integer, dimension(NT,NL,NR) :: r20
    integer, dimension(0:3) :: levcnt
    ! data initializations
    data levcnt/4*1/
@@ -140,8 +140,7 @@ subroutine step(levcnt)
    ! local variables
    integer i
    ! processing
-   
-   ! check which of the others advances
+   ! check which twenties relay steps
    if (levcnt(0) == 24 .and. levcnt(2) == 25) then 
       levcnt(3) = levcnt(3) + 1
    else if (levcnt(0) == 25) then
@@ -151,7 +150,8 @@ subroutine step(levcnt)
    end if
       
    levcnt(0) = levcnt(0) + 1  ! always advances
-   
+
+   ! reset when on advance past 25th level
    do i = 0, 3
       if (levcnt(i) > 25) levcnt(i) = 1
    end do 
@@ -182,6 +182,7 @@ function relay_twenty(NT, NL, NR, relay, lev, stp, flag)
    character, intent(in) :: flag
    ! local variables
    integer :: i, startidx, endidx, stepidx
+   ! processing
    if (flag == 'e') then
       startidx = 1
       endidx = NR

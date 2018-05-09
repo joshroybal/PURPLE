@@ -1,5 +1,4 @@
 ! program emulates Japanese PURPLE machine
-! Copyright (c) 2018 Joshua E. Roybal
 program purple
    implicit none
    ! interface declaration
@@ -14,82 +13,70 @@ program purple
          character (len = *), intent(in) :: sixes, twenties
          character :: ctch
       end function pegboard
-      ! function emulates sixes relay
-      function relay_six(NS, NL, NR, slevs, levcnt, vowels, inchar, flag) & 
-            result(outchar)
+      ! function simulates sixes relay
+      function relay_six(NS, NL, NR, relay, lev, stp)
+         integer :: relay_six
          integer, intent(in) :: NS, NL, NR
-         character, intent(in), dimension(NS,NL) :: slevs
-         integer, intent(inout), dimension(0:3) :: levcnt
-         character, intent(in) :: inchar, flag
-         character (len = *), intent(in) :: vowels
-         character :: outchar
+         integer, intent(in), dimension(NS,NL) :: relay
+         integer, intent(in) :: lev
+         integer, intent(inout) :: stp
       end function relay_six
-      ! function simulates twenties relay
-      function relay_twenty(NT, NL, NR, tlevs, levcnt, consonants, inchar, &
-            flag) result(outchar)
+      ! function simulate twenties relay
+      function relay_twenty(NT, NL, NR, relay, lev, stp, flag)
+         integer :: relay_twenty
          integer, intent(in) :: NT, NL, NR
-         character, intent(in), dimension(NT,NL,NR) :: tlevs
-         integer, intent(inout), dimension(0:3) :: levcnt
-         character (len = *), intent(in) :: consonants
-         character, intent(in) :: inchar, flag
-         character :: outchar
-      end function relay_twenty      
+         integer, intent(in), dimension(NT,NL,NR) :: relay
+         integer, intent(in), dimension(0:3) :: lev
+         integer, intent(inout) :: stp
+         character, intent(in) :: flag
+      end function relay_twenty
    end interface
    ! variable and array declarations
    character (len = 6), parameter :: vowels = 'AEIOUY', sixes = 'NOKTYU'
    character (len = 20), parameter :: consonants = 'BCDFGHJKLMNPQRSTVWXZ', &
    twenties = 'XEQLHBRMPDICJASVWGZF'
    integer, parameter :: NR = 3, NL = 25, NS = 6, NT = 20
-   integer :: i, j, k, idx, eof
+   integer :: i, j, k, idx, recno, eof
    character :: ch, flag
    character, dimension(25) :: buffer
-   character (len = 80) :: record
-   character, dimension(NS,NL) :: slevs
-   character, dimension(NT,NL,NR) :: tlevs
-   integer, dimension(NR) :: levels
+   character (len = 80) :: line
+   integer, dimension(NS,NL) :: e6, d6, r6
+   integer, dimension(NT,NL,NR) :: e20, d20, r20
    integer, dimension(0:3) :: levcnt
    ! data initializations
-   data levels/NR*1/, levcnt/4*1/
+   data levcnt/4*1/
    ! processing
    call getarg(1, flag)
    if (flag /= 'e' .and. flag /= 'd') then
       write (*,*) 'Usage: purple e/d'
       stop 'processing terminated'
    end if
-   open (7,file='levels.dat',status='old',action='read')
-   ! get enciphering relays
-   ! get sixes
-   do j = 1, NL
-      read (7,*) record
-      read (record,1000) (slevs(i,j),i=1,NS)
-   end do
-   ! get twenties
-   do k = 1, NR
-      do j = 1, NL
-         read (7,*) record
-         read (record,2000) (tlevs(i,j,k),i=1,NT)
-      end do
-   end do
+   if (flag == 'e') recno = 1
+   if (flag == 'd') recno = 2
+   open (7,file='relays.dat',access='direct',form='formatted',recl=3300)
+   read (7,1000,rec=recno) r6, r20
    close (7)
-   ! encipher input (piped or otherwise)
-   read (*,4000,iostat=eof) record
+   !write (*,'(6i2)') r6
+   !write (*,'(20i3)') r20
+   !stop 'under development'
+   read (*,2000,iostat=eof) line
    j = 0
    do while (eof == 0)
-      k = len(trim(record))
+      k = len(trim(line))
       do i = 1, k
-         ch = record(i:i)
+         ch = line(i:i)
          ! to uppercase
          if (ch >= 'a' .and. ch <= 'z') ch = char(ichar(ch) - 32)
-         if (ch < 'A' .or. ch > 'Z') cycle ! not alphabetic - do nothing
+         if (ch < 'A' .or. ch > 'Z') cycle ! not alphabetic
          ch = pegboard(ch, sixes, twenties)
          idx = index(vowels, ch)
          if (idx /= 0) then
             j = j + 1
-            ch = relay_six(NS, NL, NR, slevs, levcnt, vowels, ch, flag)
-            idx = index(vowels, ch)
+            idx = relay_six(NS, NL, NR, r6, levcnt(0), idx)
             buffer(j) = sixes(idx:idx)
+            call step(levcnt)
             if (j == 25) then
-               write (*,5000) (buffer(idx), idx = 1, j)
+               write (*,3000) (buffer(idx), idx = 1, j)
                j = 0
             end if
             cycle ! we are done here
@@ -97,16 +84,16 @@ program purple
          idx = index(consonants, ch)
          if (idx /= 0) then
             j = j + 1
-            ch = relay_twenty(NT, NL, NR, tlevs, levcnt, consonants, ch, flag)
-            idx = index(consonants, ch)
+            idx = relay_twenty(NT, NL, NR, r20, levcnt, idx, flag)
+            call step(levcnt)
             buffer(j) = twenties(idx:idx)
             if (j == 25) then
-               write (*,5000) (buffer(idx), idx = 1, j)
+               write (*,3000) (buffer(idx), idx = 1, j)
                j = 0
             end if
          end if
       end do
-      read (*,4000,iostat=eof) record
+      read (*,2000,iostat=eof) line
    end do
    ! pad out final block of 5 if necessary
    do while (mod(j, 5) /= 0) 
@@ -114,12 +101,10 @@ program purple
       buffer(j) = char(int(26 * rand()) + 65)
    end do
    ! write final line if there is one
-   if (j > 0) write (*,5000) (buffer(idx), idx = 1, j)
-   1000 format (6A1)
-   2000 format (20A1)
-   3000 format (X,A,I1,A)
-   4000 format (A)
-   5000 format (4(5A1,X),5A1)
+   if (j > 0) write (*,3000) (buffer(idx), idx = 1, j)
+   1000 format (1650i2)
+   2000 format (A)
+   3000 format (4(5A1,X),5A1)
 end program purple
 
 ! function emulates pegboard mapping of sixes and twenties
@@ -172,60 +157,43 @@ subroutine step(levcnt)
    end do 
 end subroutine step
 
-! function simualtes the sixes relay
-function relay_six(NS, NL, NR, slevs, levcnt, vowels, inchar, flag) & 
-      result(outchar)
+! function simulates sixes relay
+function relay_six(NS, NL, NR, relay, lev, stp)
+   implicit none
    ! dummy arguments
+   integer :: relay_six
    integer, intent(in) :: NS, NL, NR
-   character, intent(in), dimension(NS,NL) :: slevs
-   integer, intent(inout), dimension(0:3) :: levcnt
-   character (len = *), intent(in) :: vowels
-   character, intent(in) :: inchar, flag
-   ! local variables
-   character :: outchar
-   integer :: stpidx, levidx
+   integer, intent(in), dimension(NS,NL) :: relay
+   integer, intent(in) :: lev
+   integer, intent(inout) :: stp
    ! processing
-   levidx = levcnt(0)
-   if (flag == 'e') then
-      stpidx = index(vowels, inchar)
-      outchar = slevs(stpidx,levidx)
-   else if (flag == 'd') then
-      stpidx = 1
-      do while (inchar /= slevs(stpidx,levidx))
-         stpidx = stpidx + 1
-      end do
-      outchar = vowels(stpidx:stpidx)
-   end if
-   call step(levcnt)
+   relay_six = relay(stp,lev)
 end function relay_six
 
-! function simualates twenties relay
-function relay_twenty(NT, NL, NR, tlevs, levcnt, consonants, inchar, flag) &
-result(outchar)
+! function simulates twenties relay
+function relay_twenty(NT, NL, NR, relay, lev, stp, flag)
+   implicit none
    ! dummy arguments
+   integer :: relay_twenty
    integer, intent(in) :: NT, NL, NR
-   character, intent(in), dimension(NT,NL,NR) :: tlevs
-   integer, intent(inout), dimension(0:3) :: levcnt
-   character (len = *), intent(in) :: consonants
-   character, intent(in) :: inchar, flag
+   integer, intent(in), dimension(NT,NL,NR) :: relay
+   integer, intent(in), dimension(0:3) :: lev
+   integer, intent(inout) :: stp
+   character, intent(in) :: flag
    ! local variables
-   character :: outchar
-   integer :: i, relidx, levidx, stpidx
+   integer :: i, startidx, endidx, stepidx
+   if (flag == 'e') then
+      startidx = 1
+      endidx = NR
+      stepidx = 1
+   else
+      startidx = NR
+      endidx = 1
+      stepidx = -1
+   end if
    ! processing
-   outchar = inchar
-   do i = 1, NR
-      if (flag == 'e') then
-         stpidx = index(consonants, outchar)
-         outchar = tlevs(stpidx,levcnt(i),i)
-      else if (flag == 'd') then
-         relidx = NR - i + 1
-         levidx = levcnt(relidx)
-         stpidx = 1
-         do while (outchar /= tlevs(stpidx,levidx,relidx))
-            stpidx = stpidx + 1
-         end do
-         outchar = consonants(stpidx:stpidx)
-      end if
+   do i = startidx, endidx, stepidx
+      stp = relay(stp,lev(i),i)
    end do
-   call step(levcnt)
+   relay_twenty = stp
 end function relay_twenty

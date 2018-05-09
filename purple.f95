@@ -9,18 +9,16 @@ program purple
          integer, intent(in) :: fst, mdm, slw
       end subroutine step
       ! function emulates pegboard mapping of sixes and twenties
-      function pegboard(ptch, sixes, twenties) result(ctch)
+      function pegboard(ptch, sixes, twenties, VOWELS, CONSONANTS) result(ctch)
          character, intent(in) :: ptch
-         character (len = *), intent(in) :: sixes, twenties
+         character (len = *), intent(in) :: sixes, twenties, VOWELS, CONSONANTS
          character :: ctch
       end function pegboard
       ! function simulates sixes relay
       function relay_six(NS, NL, NR, relay, lev, stp)
          integer :: relay_six
-         integer, intent(in) :: NS, NL, NR
+         integer, intent(in) :: NS, NL, NR, lev, stp
          integer, intent(in), dimension(NS,NL) :: relay
-         integer, intent(in) :: lev
-         integer, intent(inout) :: stp
       end function relay_six
       ! function simulate twenties relay
       function relay_twenty(NT, NL, NR, relay, lev, stp)
@@ -32,13 +30,14 @@ program purple
       end function relay_twenty
    end interface
    ! variable and array declarations
-   character (len = 6), parameter :: vowels = 'AEIOUY', sixes = 'NOKTYU'
-   character (len = 20), parameter :: consonants = 'BCDFGHJKLMNPQRSTVWXZ', &
-   twenties = 'XEQLHBRMPDICJASVWGZF'
+   character (len = 6), parameter :: VOWELS = 'AEIOUY'
+   character (len = 20), parameter :: CONSONANTS = 'BCDFGHJKLMNPQRSTVWXZ'
    integer, parameter :: NR = 3, NL = 25, NS = 6, NT = 20
    integer :: i, j, k, fst, mdm, slw, idx, recno, eof
    character :: ch, flag
    character, dimension(25) :: buffer
+   character (len = 6) :: sixes = 'NOKTYU'
+   character (len = 20) :: twenties = 'XEQLHBRMPDICJASVWGZF'
    character (len = 80) :: line
    integer, dimension(NS,NL) :: r6
    integer, dimension(NT,NL,NR) :: r20
@@ -65,9 +64,6 @@ program purple
    open (7,file='relays.dat',access='direct',form='formatted',recl=3300)
    read (7,1000,rec=recno) r6, r20
    close (7)
-   ! write (*,'(6i2)') r6
-   ! write (*,'(20i3)') r20
-   !stop 'under development'
    read (*,2000,iostat=eof) line
    j = 0
    do while (eof == 0)
@@ -77,8 +73,8 @@ program purple
          ! to uppercase
          if (ch >= 'a' .and. ch <= 'z') ch = char(ichar(ch) - 32)
          if (ch < 'A' .or. ch > 'Z') cycle ! not alphabetic
-         ch = pegboard(ch, sixes, twenties)
-         idx = index(vowels, ch)
+         ch = pegboard(ch, sixes, twenties, VOWELS, CONSONANTS)
+         idx = index(VOWELS, ch)
          if (idx /= 0) then
             j = j + 1
             idx = relay_six(NS, NL, NR, r6, levcnt(0), idx)
@@ -90,7 +86,7 @@ program purple
             end if
             cycle ! we are done here
          end if
-         idx = index(consonants, ch)
+         idx = index(CONSONANTS, ch)
          if (idx /= 0) then
             j = j + 1
             idx = relay_twenty(NT, NL, NR, r20, levcnt, idx)
@@ -117,25 +113,23 @@ program purple
 end program purple
 
 ! function emulates pegboard mapping of sixes and twenties
-function pegboard(ptch, sixes, twenties) result(ctch)
+function pegboard(ptch, sixes, twenties, VOWELS, CONSONANTS) result(ctch)
    implicit none
    ! dummy arguments
    character, intent(in) :: ptch
-   character (len = *), intent(in) :: sixes, twenties
+   character (len = *), intent(in) :: sixes, twenties, VOWELS, CONSONANTS
    ! local variables
    character :: ctch
-   character (len = 6), parameter :: vowels = 'AEIOUY'
-   character (len = 20), parameter :: consonants = 'BCDFGHJKLMNPQRSTVWXZ'
    integer :: idx
    ! processing
    idx = index(sixes, ptch)
    if (idx /= 0) then
-      ctch = vowels(idx:idx)
+      ctch = VOWELS(idx:idx)
       return
    end if
    idx = index(twenties, ptch)
    if (idx /= 0) then
-      ctch = consonants(idx:idx)
+      ctch = CONSONANTS(idx:idx)
       return
    end if
    ctch = ptch ! fail safe
@@ -172,10 +166,8 @@ function relay_six(NS, NL, NR, relay, lev, stp)
    implicit none
    ! dummy arguments
    integer :: relay_six
-   integer, intent(in) :: NS, NL, NR
+   integer, intent(in) :: NS, NL, NR, lev, stp
    integer, intent(in), dimension(NS,NL) :: relay
-   integer, intent(in) :: lev
-   integer, intent(inout) :: stp
    ! processing
    relay_six = relay(stp,lev)
 end function relay_six

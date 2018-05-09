@@ -4,8 +4,9 @@ program purple
    ! interface declaration
    interface
       ! level incrementing subroutine
-      subroutine step(levcnt)
+      subroutine step(levcnt, fst, mdm, slw)
          integer, intent(inout), dimension(0:3) :: levcnt
+         integer, intent(in) :: fst, mdm, slw
       end subroutine step
       ! function emulates pegboard mapping of sixes and twenties
       function pegboard(ptch, sixes, twenties) result(ctch)
@@ -22,13 +23,12 @@ program purple
          integer, intent(inout) :: stp
       end function relay_six
       ! function simulate twenties relay
-      function relay_twenty(NT, NL, NR, relay, lev, stp, flag)
+      function relay_twenty(NT, NL, NR, relay, lev, stp)
          integer :: relay_twenty
          integer, intent(in) :: NT, NL, NR
          integer, intent(in), dimension(NT,NL,NR) :: relay
          integer, intent(in), dimension(0:3) :: lev
          integer, intent(inout) :: stp
-         character, intent(in) :: flag
       end function relay_twenty
    end interface
    ! variable and array declarations
@@ -36,7 +36,7 @@ program purple
    character (len = 20), parameter :: consonants = 'BCDFGHJKLMNPQRSTVWXZ', &
    twenties = 'XEQLHBRMPDICJASVWGZF'
    integer, parameter :: NR = 3, NL = 25, NS = 6, NT = 20
-   integer :: i, j, k, idx, recno, eof
+   integer :: i, j, k, fst, mdm, slw, idx, recno, eof
    character :: ch, flag
    character, dimension(25) :: buffer
    character (len = 80) :: line
@@ -51,13 +51,22 @@ program purple
       write (*,*) 'Usage: purple e/d'
       stop 'processing terminated'
    end if
-   if (flag == 'e') recno = 1
-   if (flag == 'd') recno = 2
+   if (flag == 'e') then
+      recno = 1
+      fst = 1
+      mdm = 2
+      slw = 3
+   else
+      recno = 2
+      fst = 3
+      mdm = 2
+      slw = 1
+   end if
    open (7,file='relays.dat',access='direct',form='formatted',recl=3300)
    read (7,1000,rec=recno) r6, r20
    close (7)
-   !write (*,'(6i2)') r6
-   !write (*,'(20i3)') r20
+   ! write (*,'(6i2)') r6
+   ! write (*,'(20i3)') r20
    !stop 'under development'
    read (*,2000,iostat=eof) line
    j = 0
@@ -74,7 +83,7 @@ program purple
             j = j + 1
             idx = relay_six(NS, NL, NR, r6, levcnt(0), idx)
             buffer(j) = sixes(idx:idx)
-            call step(levcnt)
+            call step(levcnt, fst, mdm, slw)
             if (j == 25) then
                write (*,3000) (buffer(idx), idx = 1, j)
                j = 0
@@ -84,9 +93,9 @@ program purple
          idx = index(consonants, ch)
          if (idx /= 0) then
             j = j + 1
-            idx = relay_twenty(NT, NL, NR, r20, levcnt, idx, flag)
-            call step(levcnt)
+            idx = relay_twenty(NT, NL, NR, r20, levcnt, idx)
             buffer(j) = twenties(idx:idx)
+            call step(levcnt, fst, mdm, slw)
             if (j == 25) then
                write (*,3000) (buffer(idx), idx = 1, j)
                j = 0
@@ -133,20 +142,21 @@ function pegboard(ptch, sixes, twenties) result(ctch)
 end function pegboard
 
 ! subroutine increments levels
-subroutine step(levcnt)
+subroutine step(levcnt, fst, mdm, slw)
    implicit none
    ! dummy arguments
    integer, intent(inout), dimension(0:3) :: levcnt
+   integer, intent(in) :: fst, mdm, slw
    ! local variables
    integer i
    ! processing
    ! check which twenties relay steps
-   if (levcnt(0) == 24 .and. levcnt(2) == 25) then 
-      levcnt(3) = levcnt(3) + 1
+   if (levcnt(0) == 24 .and. levcnt(mdm) == 25) then 
+      levcnt(slw) = levcnt(slw) + 1
    else if (levcnt(0) == 25) then
-      levcnt(2) = levcnt(2) + 1
+      levcnt(mdm) = levcnt(mdm) + 1
    else
-      levcnt(1) = levcnt(1) + 1
+      levcnt(fst) = levcnt(fst) + 1
    end if
       
    levcnt(0) = levcnt(0) + 1  ! always advances
@@ -171,7 +181,7 @@ function relay_six(NS, NL, NR, relay, lev, stp)
 end function relay_six
 
 ! function simulates twenties relay
-function relay_twenty(NT, NL, NR, relay, lev, stp, flag)
+function relay_twenty(NT, NL, NR, relay, lev, stp)
    implicit none
    ! dummy arguments
    integer :: relay_twenty
@@ -179,21 +189,10 @@ function relay_twenty(NT, NL, NR, relay, lev, stp, flag)
    integer, intent(in), dimension(NT,NL,NR) :: relay
    integer, intent(in), dimension(0:3) :: lev
    integer, intent(inout) :: stp
-   character, intent(in) :: flag
    ! local variables
-   integer :: i, startidx, endidx, stepidx
+   integer :: i
    ! processing
-   if (flag == 'e') then
-      startidx = 1
-      endidx = NR
-      stepidx = 1
-   else
-      startidx = NR
-      endidx = 1
-      stepidx = -1
-   end if
-   ! processing
-   do i = startidx, endidx, stepidx
+   do i = 1, NR
       stp = relay(stp,lev(i),i)
    end do
    relay_twenty = stp

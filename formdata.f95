@@ -39,7 +39,7 @@ program formdata
    ! write records to direct access data file
    open (8,file='relays.dat',access='direct',form='formatted',recl=6600)
    write (8,5000,rec=1) e_sixes, e_twenties,((d_sixes(i,j),i=2,NS+1),j=1,NL), &
-      (((d_twenties(i,j,k),i=2,NT+1),j=1,NL),k=1,NR)
+      (((d_twenties(i,j,k),i=2,NT+1),j=1,NL),k=NR,1,-1)
    5000 format (3300i2)
    ! 5000 format (3300z0.2) hex with leading zeros
    close (8)
